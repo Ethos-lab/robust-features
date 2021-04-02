@@ -6,9 +6,6 @@ import torch as ch
 from robustness import model_utils, datasets, cifar_models
 from robustness.attacker import AttackerModel
 
-# Constants
-DATA_SHAPE = 32 if DATA == 'CIFAR' else 224 # Image size (fixed for dataset)
-
 
 def get_args():
     parser = argparse.ArgumentParser(description="Testing script.")
@@ -32,7 +29,7 @@ def test(amodel, test_loader, make_adv, attack_kwargs=None):
     for im, lbl in test_loader:
         im, lbl = im.cuda(), lbl.cuda()
         if make_adv:
-            assert attack_kwargs != None:
+            assert attack_kwargs != None
             _, im_adv = amodel(im, lbl, make_adv=True, **attack_kwargs)
             pred, _ = amodel(im_adv)
         else:
@@ -51,7 +48,10 @@ def main():
     args = get_args()
 
     for arg, value in sorted(vars(args).items()):
-        logger.info("Argument %s: %r", arg, value)
+        print(f"Argument {arg}: {value}")
+
+    # Constants
+    DATA_SHAPE = 32 if args.dataset == 'CIFAR' else 224 # Image size (fixed for dataset)
 
     # Load dataset
     dataset_function = getattr(datasets, args.dataset)
@@ -63,7 +63,7 @@ def main():
 
     model = cifar_models.__dict__[args.model](num_classes=10).cuda()
 
-    ckpt_path = f'./checkpoints/{args.load_path}/model.pt'
+    ckpt_path = f'{args.load_path}/model.pt'
     if args.model_type == 'nn_module':
         ckpt = ch.load(ckpt_path)
         sd = ckpt['state_dict']
@@ -88,7 +88,7 @@ def main():
 
     # Natural accuracy
     acc = test(amodel, test_loader, make_adv=False)
-    print(f'Natural accuracy: {:.4f}%')
+    print(f'Natural accuracy: {acc:.4f}%')
 
     # PGD (eps = 0.25)
     attack_kwargs = {
@@ -98,7 +98,7 @@ def main():
         'iterations': 20,
         'do_tqdm': False
     }
-    acc = test(amodel, test_loader, make_adv=True, attack_kwargs=attack_kwards)
+    acc = test(amodel, test_loader, make_adv=True, attack_kwargs=attack_kwargs)
     print(f'Adversarial accuracy (0.25): {acc:.4f}%')
 
     # PGD (eps = 0.5)
@@ -109,7 +109,7 @@ def main():
         'iterations': 20,
         'do_tqdm': False
     }
-    acc = test(amodel, test_loader, make_adv=True, attack_kwargs=attack_kwards)
+    acc = test(amodel, test_loader, make_adv=True, attack_kwargs=attack_kwargs)
     print(f'Adversarial accuracy (0.5): {acc:.4f}%')
 
     # PGD (eps = 1.0)
@@ -120,7 +120,7 @@ def main():
         'iterations': 20,
         'do_tqdm': False
     }
-    acc = test(amodel, test_loader, make_adv=True, attack_kwargs=attack_kwards)
+    acc = test(amodel, test_loader, make_adv=True, attack_kwargs=attack_kwargs)
     print(f'Adversarial accuracy (1.0): {acc:.4f}%')
 
 
