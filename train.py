@@ -193,11 +193,11 @@ def main():
     if args.load_std_data:
         dataset = dataset_function(args.dataroot)
         train_loader, val_loader = dataset.make_loaders(workers=args.num_workers,
-                                                         batch_size=args.batch_size,
-                                                         val_batch_size=args.val_batch_size,
-                                                         data_aug=True,
-                                                         shuffle_train=True,
-                                                         shuffle_val=False)
+                                                        batch_size=args.batch_size,
+                                                        val_batch_size=args.val_batch_size,
+                                                        data_aug=True,
+                                                        shuffle_train=True,
+                                                        shuffle_val=False)
     else:
         dataset = dataset_function('') #Only use this for accessing mean and std
 
@@ -225,7 +225,7 @@ def main():
         val_set = torchvision.datasets.CIFAR10(root='/media/big_hdd/data/CIFAR10', train=False,
                                                transform=TEST_TRANSFORMS_DEFAULT(32))
         val_loader = DataLoader(val_set, batch_size=args.val_batch_size,
-                shuffle=False, num_workers=args.num_workers, pin_memory=True)
+                                shuffle=False, num_workers=args.num_workers, pin_memory=True)
 
     # Prepare standard and robust model
     if args.l2_weight != 0:
