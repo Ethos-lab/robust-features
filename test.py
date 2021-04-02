@@ -84,10 +84,10 @@ def main():
         sd = {k[len('module.'):]:v for k,v in sd.items()}
         amodel.load_state_dict(sd)
 
-    # testing begins
+    # Testing begins
 
     # Natural accuracy
-    acc = test(amodel, test_loader, make_adv=False, attack_kwargs={})
+    acc = test(amodel, test_loader, make_adv=False)
     print(f'Natural accuracy: {:.4f}%')
 
     # PGD (eps = 0.25)

@@ -60,7 +60,7 @@ class ModelwithNormalization(torch.nn.Module):
             raise ValueError("Options 'no_relu' and 'fake_relu' are exclusive")
 
         output = self.model(normalized_inp, with_latent=with_latent,
-                                fake_relu=fake_relu, no_relu=no_relu)
+                            fake_relu=fake_relu, no_relu=no_relu)
 
         return output
 
