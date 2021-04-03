@@ -2,7 +2,7 @@
 
 ## Getting Started
 
-1. Use requirements.txt or environment.yml to recreate virtual environment
+1. Use requirements.txt or environment.yml to recreate virtual environment.
 2. Example command to train a student-teacher model:
 
 ```
