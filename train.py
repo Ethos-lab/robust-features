@@ -18,11 +18,13 @@ from robustness.tools import helpers, folder
 def get_args():
     parser = argparse.ArgumentParser(description="Training script.")
     parser.add_argument('--dataset', type=str, choices=["CIFAR"], default='CIFAR', help='dataset')
-    parser.add_argument('--dataroot', type=str, default='/media/big_hdd/data/CIFAR10', help='path to dataset if you need diff from default')
-    parser.add_argument('--model', type=str, default='resnet50')
-    parser.add_argument('--rob-model-path', type=str, default='cifar_resnet50_l2_1_0')
-    parser.add_argument('--exp-name', type=str, default='')
-    parser.add_argument('--save-dir', type=str, default='')
+    parser.add_argument('--dataroot', type=str, default='/media/big_hdd/data/CIFAR10', help='path to dataset')
+    parser.add_argument('--rob-dataroot', type=str, default='/media/big_hdd/data/CIFAR10_constructed/d_robust_CIFAR', help='path to robust dataset')
+    parser.add_argument('--load-std-data', action='store_true', help='loads D if true, else loads D_r')
+    parser.add_argument('--student-arch', type=str, default='resnet50')
+    parser.add_argument('--teacher-load-path', type=str, default='cifar_resnet50_l2_1_0/model.pt')
+    parser.add_argument('--exp-name', type=str, default='', help='additional description for exp to add to save_dir name')
+    parser.add_argument('--save-dir', type=str, default='', help='overwrites automatically created save_dir')
 
     # training hyperparams
     parser.add_argument('--lr', type=float, default=0.1, help='initial learning rate')
@@ -34,8 +36,6 @@ def get_args():
     parser.add_argument('--num-workers', type=int, default=4, help='for dataloader')
     parser.add_argument('--xent-weight', type=float, default=1.)
     parser.add_argument('--l2-weight', type=float, default=1.)
-    parser.add_argument('--normalize-l2-loss', action='store_true')
-    parser.add_argument('--load-std-data', action='store_true')
 
     # testing hyperparams
     parser.add_argument('--val-batch-size', type=int, default=128, help='initial batch size')
@@ -65,6 +65,7 @@ class ModelwithNormalization(torch.nn.Module):
         return output
 
 
+
 def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, scheduler, logger, start_epoch, best_acc):
     logger.info('Started Training !!!')
 
@@ -89,13 +90,10 @@ def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, schedu
             if args.l2_weight != 0:
                 (_, rep_rob), _ = f_rob(images, with_latent=True)
                 outputs, rep_std = net(images, with_latent=True)
-                if args.normalize_l2_loss:
-                    loss_feat = torch.mean(torch.div(
-                                    torch.norm(rep_std - rep_rob.detach(), dim=1),
-                                    torch.norm(rep_rob.detach(), dim=1)
-                                ))
-                else:
-                    loss_feat = torch.mean(torch.norm(rep_std - rep_rob.detach(), dim=1))
+                loss_feat = torch.mean(torch.div(
+                                torch.norm(rep_std - rep_rob.detach(), dim=1),
+                                torch.norm(rep_rob.detach(), dim=1)
+                            ))
             else:
                 outputs, rep_std = net(images, with_latent=True)
                 loss_feat = torch.tensor(0)
@@ -109,7 +107,6 @@ def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, schedu
             running_xent += loss_xent.item()
             running_fl += loss_feat.item()
             running_loss += loss.item()
-            #print(running_loss/(i+1), running_xent/(i+1), running_fl/(i+1))
 
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
@@ -173,11 +170,11 @@ def main():
 
     args = get_args()
 
+    args.teacher_arch = args.teacher_load_path.split('_')[1]
     if args.save_dir == '':
-        args.save_dir = f'./checkpoints/{args.dataset}-feat_loss=l2-teacher={args.rob_model_path}-student={args.model}-loss={args.xent_weight}xent+{args.l2_weight}l2_loss'
+        args.save_dir = f'./checkpoints/{args.dataset}-feat_loss=l2-teacher={args.teacher_arch}-student={args.student_arch}-xent_weight={args.xent_weight}-l2_weight={args.l2_weight}'
         if args.exp_name != '':
            args.save_dir += f'-{args.exp_name}'
-    args.rob_model_arch = args.rob_model_path.split('_')[1]
 
     if not os.path.exists(args.save_dir):
         os.mkdir(args.save_dir)
@@ -188,9 +185,9 @@ def main():
     for arg, value in sorted(vars(args).items()):
         logger.info("Argument %s: %r", arg, value)
 
-    # Load dataset
     dataset_function = getattr(datasets, args.dataset)
     if args.load_std_data:
+        # Load standard dataset (D)
         dataset = dataset_function(args.dataroot)
         train_loader, val_loader = dataset.make_loaders(workers=args.num_workers,
                                                         batch_size=args.batch_size,
@@ -200,8 +197,7 @@ def main():
                                                         shuffle_val=False)
     else:
         dataset = dataset_function('') #Only use this for accessing mean and std
-
-        # Loading robust dataset
+        # Load robust dataset (D_r)
         TRAIN_TRANSFORMS_DEFAULT = lambda size: transforms.Compose([
                     transforms.RandomCrop(size, padding=4),
                     transforms.RandomHorizontalFlip(),
@@ -216,13 +212,14 @@ def main():
             transforms.ToTensor()
         ])
 
-        train_data = torch.cat(torch.load(os.path.join(args.dataroot, f"CIFAR_ims")))
-        train_labels = torch.cat(torch.load(os.path.join(args.dataroot, f"CIFAR_lab")))
+        train_data = torch.cat(torch.load(os.path.join(args.rob_dataroot, "CIFAR_ims")))
+        train_labels = torch.cat(torch.load(os.path.join(args.rob_dataroot, "CIFAR_lab")))
         train_set = folder.TensorDataset(train_data, train_labels, transform=TRAIN_TRANSFORMS_DEFAULT(32))
         train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True,
                                   num_workers=args.num_workers, pin_memory=True)
 
-        val_set = torchvision.datasets.CIFAR10(root='/media/big_hdd/data/CIFAR10', train=False,
+        #NOTE: Need path to standard data to load val set
+        val_set = torchvision.datasets.CIFAR10(root=args.dataroot, train=False,
                                                transform=TEST_TRANSFORMS_DEFAULT(32))
         val_loader = DataLoader(val_set, batch_size=args.val_batch_size,
                                 shuffle=False, num_workers=args.num_workers, pin_memory=True)
@@ -230,16 +227,16 @@ def main():
     # Prepare standard and robust model
     if args.l2_weight != 0:
         model_kwargs = {
-            'arch': args.rob_model_arch,
+            'arch': args.teacher_arch,
             'dataset': dataset,
-            'resume_path': f'./checkpoints/{args.rob_model_path}/model.pt'
+            'resume_path': f'./checkpoints/{args.teacher_load_path}'
         }
         rob_model, _ = model_utils.make_and_restore_model(**model_kwargs)
         rob_model.eval()
     else:
         rob_model = None
 
-    model = cifar_models.__dict__[args.model](num_classes=10)
+    model = cifar_models.__dict__[args.student_arch](num_classes=10)
     # Add normalizer
     norm_model = ModelwithNormalization(model, dataset).cuda()
 
