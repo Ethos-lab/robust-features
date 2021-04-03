@@ -339,13 +339,18 @@ def train_model(args, model, loaders, *, checkpoint=None, dp_device_ids=None,
                         None, epoch, False, writer)
 
             # loader, model, epoch, input_adv_exs
-            should_adv_eval = args.adv_eval or args.adv_train
+
+#            should_adv_eval = args.adv_eval or args.adv_train
+            should_adv_eval = args.adv_eval
+
             adv_val = should_adv_eval and _model_loop(args, 'val', val_loader,
                     model, None, epoch, True, writer)
             adv_prec1, adv_loss = adv_val or (-1.0, -1.0)
 
             # remember best prec@1 and save checkpoint
-            our_prec1 = adv_prec1 if args.adv_train else prec1
+#            our_prec1 = adv_prec1 if args.adv_train else prec1
+            our_prec1 = adv_prec1 if should_adv_eval else prec1
+
             is_best = our_prec1 > best_prec1
             best_prec1 = max(our_prec1, best_prec1)
             sd_info[prec1_key] = our_prec1
