@@ -63,7 +63,7 @@ def main():
 
     model = cifar_models.__dict__[args.model](num_classes=10).cuda()
 
-    ckpt_path = f'{args.load_path}/model.pt'
+    ckpt_path = args.load_path
     if args.model_type == 'nn_module':
         ckpt = ch.load(ckpt_path)
         sd = ckpt['state_dict']

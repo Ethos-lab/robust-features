@@ -14,6 +14,8 @@ from torchvision import transforms
 from robustness import model_utils, datasets, cifar_models
 from robustness.tools import helpers, folder
 
+from attacks import PGD_l2
+
 
 def get_args():
     parser = argparse.ArgumentParser(description="Training script.")
@@ -65,12 +67,11 @@ class ModelwithNormalization(torch.nn.Module):
         return output
 
 
-
-def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, scheduler, logger, start_epoch, best_acc):
+def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, scheduler, logger, start_epoch, best_acc, attack=None):
     logger.info('Started Training !!!')
 
     for epoch in range(start_epoch, args.epochs):  # loop over the dataset multiple times
-        print(f'Epoch: {epoch}/{args.epochs}')
+        logger.info(f'Epoch: {epoch}/{args.epochs}')
         net.train()
 
         running_loss = 0.0
@@ -121,8 +122,9 @@ def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, schedu
                     f'loss: {running_loss/len(trainloader):.4f} ({running_xent/len(trainloader):.4f}, {running_fl/len(trainloader):.4f}), '+\
                     f'accuracy: {train_acc:.4f}%')
 
-        val_acc = test(net, valloader)
-        logger.info(f'Val | accuracy: {val_acc:.4f}%')
+        val_nat_acc, val_adv_acc = test(net, valloader, attack)
+        logger.info(f'Val | nat accuracy: {val_nat_acc:.4f}%, adv accuracy: {val_adv_acc:.4f}%')
+        val_acc = val_adv_acc if attack != None else val_nat_acc
 
         if val_acc > best_acc:
             logger.info('Saving model !!!')
@@ -132,7 +134,9 @@ def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, schedu
                     'state_dict': net.model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                     'epoch': epoch,
-                    'best_acc': best_acc
+                    'best_acc': best_acc,
+                    'val_nat_acc': val_nat_acc,
+                    'val_adv_acc': val_adv_acc
                 },
                 os.path.join(args.save_dir, 'model.pt')
             )
@@ -142,10 +146,11 @@ def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, schedu
     logger.info('Finished Training !!!')
 
 
-def test(net, valloader):
+def test(net, valloader, attack):
     net.eval()
 
     correct = 0
+    adv_correct = 0
     total = 0
     with torch.no_grad():
         for data in valloader:
@@ -158,9 +163,16 @@ def test(net, valloader):
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
 
-    acc = 100 * correct / total
+            if attack:
+                adv_images = attack(net, images, labels)
+                outputs = net(adv_images)
+                _, predicted = torch.max(outputs.data, 1)
+                adv_correct += (predicted == labels).sum().item()
 
-    return acc
+    nat_acc = 100 * correct / total
+    adv_acc = 100 * adv_correct / total
+
+    return nat_acc, adv_acc
 
 
 def main():
@@ -261,7 +273,13 @@ def main():
         milestones = [int(x) for x in args.milestones.split(',')]
         scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=args.gamma)
 
-    train(args, norm_model, rob_model, train_loader, val_loader, criterion, optimizer, scheduler, logger, start_epoch, best_acc)
+    # Init attack for eval
+    #TODO: set attack params using args
+    #attack = PGD_l2(epsilon=1., num_steps=20, step_size=0.125).cuda()
+    attack = None
+
+    train(args, norm_model, rob_model, train_loader, val_loader, criterion, optimizer, scheduler,
+          logger, start_epoch, best_acc, attack)
 
 
 if __name__ == '__main__':
