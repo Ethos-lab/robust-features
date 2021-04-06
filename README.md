@@ -3,23 +3,8 @@
 ## Getting Started
 
 1. Use requirements.txt or environment.yml to recreate virtual environment.
-2. Example command to train a student-teacher model:
 
-```
-CUDA_VISIBLE_DEVICES=0 python train.py \
-    --dataset CIFAR \
-    --dataroot /path/to/cifar \
-    --batch-size 128 \
-    --xent-weight 0.001 \
-    --l2-weight 1.0 \
-    --teacher-load-path /path/to/teacher/model.pt \
-    --load-std-data \
-    --student-arch resnet50 \
-    --epochs 100 \
-    --milestones 65,90
-```
-
-3. Example command to adversarially train teacher model using robustness toolbox:
+2. Adversarially train teacher model using robustness toolbox:
 
 ```
 CUDA_VISIBLE_DEVICES=0 python -m robustness.main \
@@ -43,8 +28,28 @@ CUDA_VISIBLE_DEVICES=0 python -m robustness.main \
     --attack-lr 0.2 \
     --random-start 1
 ```
+The best checkpoint will be saved at: `{out_dir}/{exp_name}/checkpoint.pt.best`
 
-4. Example command to test a model that was trained using `train.py`:
+3. Train a student using the robust teacher model:
+
+```
+CUDA_VISIBLE_DEVICES=0 python train.py \
+    --dataset CIFAR \
+    --dataroot /path/to/cifar \
+    --batch-size 128 \
+    --xent-weight 0.001 \
+    --l2-weight 1.0 \
+    --teacher-load-path /path/to/teacher/model.pt \
+    --load-std-data \
+    --student-arch resnet50 \
+    --epochs 100 \
+    --milestones 65,90
+```
+The best checkpoint will be saved at: `./checkpoints/{dataset}-feat_loss=l2-teacher={teacher_arch}-student={student_arch}-xent_weight={xent_weight}-l2_weight={l2_weight}-{exp_name (optional)}/checkpoint.pt.best`. The value for `teacher_arch` is inferred from `teacher_load_path`.
+
+If the value for arg `save_dir` is provided, best checkpoint will be saved at: `{save_dir}/checkpoint.pt.best`.
+
+4. Example command to test a student model:
 
 ```
 CUDA_VISIBLE_DEVICES=0 python test.py \
@@ -56,7 +61,7 @@ CUDA_VISIBLE_DEVICES=0 python test.py \
     --model-type nn_module
 ```
 
-5. Example command to test a model trained using robustness toolbox:
+5. Example command to test a teacher model (trained using robustness toolbox):
 
 ```
 CUDA_VISIBLE_DEVICES=0 python test.py \
