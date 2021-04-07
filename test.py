@@ -76,7 +76,7 @@ def get_args():
     parser.add_argument("--load-path", type=str, default="")
     parser.add_argument("--batch-size", type=int, default=50, help="initial batch size")
     parser.add_argument("--num-workers", type=int, default=4, help="for dataloader")
-    # attack hyperparams (no default values, 
+    # attack hyperparams (no default values, pass every time)
     parser.add_argument("--eps", type=float, required=True, help="perturbation budget")
     parser.add_argument("--pgd-iters", type=int, required=True, help="perturb number of steps")
     parser.add_argument("--step-size", type=float, required=True, help="perturb step size")
