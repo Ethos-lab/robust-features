@@ -30,6 +30,7 @@ CUDA_VISIBLE_DEVICES=0 python -m robustness.main \
     --random-start 1
 ```
 The best checkpoint will be saved at: `{out_dir}/{exp_name}/checkpoint.pt.best`.
+NOTE: Set attack_lr to eps/5.
 
 3. Train a student using the robust teacher model:
 
