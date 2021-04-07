@@ -78,8 +78,8 @@ def get_args():
     parser.add_argument("--num-workers", type=int, default=4, help="for dataloader")
     # attack hyperparams (no default values, 
     parser.add_argument("--eps", type=float, required=True, help="perturbation budget")
-    parser.add_argument("--pgd_iters", type=int, required=True, help="perturb number of steps")
-    parser.add_argument("--step_size", type=float, required=True, help="perturb step size")
+    parser.add_argument("--pgd-iters", type=int, required=True, help="perturb number of steps")
+    parser.add_argument("--step-size", type=float, required=True, help="perturb step size")
     parser.add_argument("--constraint", type=str, choices=["2", "inf"], required=True, help="PGD attack constraint metric")
     parser.add_argument("--no_rand_init", action="store_true", help="random initialization for PGD")
 
