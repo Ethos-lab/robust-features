@@ -8,14 +8,14 @@ Script that goes through a given logfile and uploads to wandb
 Before running this you need to create a project in wandb named 'edge-dropping'
 And then `pip install wandb` and `wandb init`
 
-Pretty brute force, expects normal log file (no breaks/restarts or any other prints)
-
 '''
 
 parser = argparse.ArgumentParser(description="Parse log file and upload to wandb")
 parser.add_argument('--file-location', help='creates experiment with this name if not specified')
-parser.add_argument('--wandb-exp-name', type=str, default='')
 parser.add_argument('--dryrun', action="store_true")
+parser.add_argument('--wandb-username', type=str, default='pratik18v')
+parser.add_argument('--wandb-project-name', type=str, default='robust-features')
+parser.add_argument('--wandb-exp-name', type=str, default='')
 
 args = parser.parse_args()
 
@@ -26,7 +26,7 @@ print('Exp name: ' + args.wandb_exp_name)
 
 
 if not args.dryrun:
-    wandb.init(project="robust-features", entity="pratik18v", name=args.wandb_exp_name)
+    wandb.init(project=args.wandb_project_name, entity=args.wandb_username, name=args.wandb_exp_name)
 
 # Get Epoch, Train Acc, Test Acc, Train Loss, Test Loss
 with open(args.file_location, 'r') as f:
@@ -45,7 +45,8 @@ for l in lines:
     if li == "Started Training !!!" or \
        li == "Saving model !!!" or \
        li == "Finished Training !!!" or \
-       li.startswith("Argument"):
+       li.startswith("Argument") or \
+       li.startswith("Epoch"):
         continue
 
     tokens = li.split(' ')
