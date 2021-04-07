@@ -119,17 +119,17 @@ def main():
     # Load dataset
     dataset_function = DATASETS[args.dataset]
     dataset = dataset_function(args.dataroot)
-     _, test_loader = dataset.make_loaders(only_val=True,
-                                           val_batch_size=args.batch_size,
-                                           shuffle_val=False,
-                                           workers=args.num_workers
-                                           )
+    _, test_loader = dataset.make_loaders(only_val=True,
+                                          batch_size=args.batch_size,
+                                          shuffle_val=False,
+                                          workers=args.num_workers
+                                          )
     test_loader = helpers.DataPrefetcher(test_loader)
 
     if args.dataset == "cifar":
-        model = cifar_models.__dict__[args.student_arch](num_classes=10)
+        model = cifar_models.__dict__[args.model](num_classes=10)
     else:
-        model = imagenet_models.__dict__[args.student_arch](num_classes=9)
+        model = imagenet_models.__dict__[args.model](num_classes=9)
 
     # Loading model checkpoint
     checkpoint = ch.load(args.load_path, pickle_module=dill)

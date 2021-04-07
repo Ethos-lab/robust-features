@@ -252,7 +252,7 @@ def main():
 
         #NOTE: Need path to standard data to load val set
         _, val_loader = dataset.make_loaders(only_val=True,
-                                             val_batch_size=args.val_batch_size,
+                                             batch_size=args.val_batch_size,
                                              shuffle_val=False,
                                              workers=args.num_workers
                                              )
