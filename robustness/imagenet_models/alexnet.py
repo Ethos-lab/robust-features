@@ -32,11 +32,11 @@ class AlexNet(nn.Module):
             nn.Linear(256 * 6 * 6, 4096),
             nn.ReLU(inplace=True),
             nn.Dropout(),
-            nn.Linear(4096, 4096),
+            nn.Linear(4096, 2048),
         )
         self.last_relu = nn.ReLU(inplace=True)
         self.last_relu_fake = FakeReLUM()
-        self.last_layer = nn.Linear(4096, num_classes)
+        self.last_layer = nn.Linear(2048, num_classes)
 
     def forward(self, x, with_latent=False, fake_relu=False, no_relu=False):
         x = self.features(x)
@@ -67,3 +67,16 @@ def alexnet(pretrained=False, progress=True, **kwargs):
                                               progress=progress)
         model.load_state_dict(state_dict)
     return model
+
+#def test():
+#    import torch
+#
+#    net = alexnet(num_classes=9)
+#    #_, y = net(torch.randn(1,3,224,224), with_latent=True)
+#    #print(y.size())
+#
+#    from torchsummary import summary
+#    summary(net, input_size=(3, 224, 224))
+#
+#test()
+

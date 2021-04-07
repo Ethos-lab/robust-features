@@ -55,3 +55,14 @@ vgg11 = VGG11
 vgg13 = VGG13
 vgg16 = VGG16
 vgg19 = VGG19
+
+#def test():
+#    net = vgg16()
+#    #_, y = net(torch.randn(1,3,32,32), with_latent=true)
+#    #print(y.size())
+#
+#    from torchsummary import summary
+#    summary(net, input_size=(3, 32, 32))
+#
+#test()
+

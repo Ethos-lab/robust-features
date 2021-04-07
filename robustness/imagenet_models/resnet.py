@@ -408,3 +408,14 @@ def wide_resnet101_2(pretrained=False, progress=True, **kwargs):
     kwargs['width_per_group'] = 64 * 2
     return _resnet('wide_resnet101_2', Bottleneck, [3, 4, 23, 3],
                    pretrained, progress, **kwargs)
+
+
+#def test():
+#    net = wide_resnet50_6(num_classes=9)
+#    #_, y = net(torch.randn(1,3,224,224), with_latent=True)
+#    #print(y.size())
+#
+#    from torchsummary import summary
+#    summary(net, input_size=(3, 224, 224))
+#
+#test()

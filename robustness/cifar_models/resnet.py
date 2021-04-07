@@ -148,8 +148,13 @@ resnet152 = ResNet152
 resnet18wide = ResNet18Wide
 
 # resnet18thin = ResNet18Thin
-def test():
-    net = ResNet34()
-    _, y = net(torch.randn(1,3,32,32), with_latent=True)
-    print(y.size())
+#def test():
+#    net = resnet34()
+#    #_, y = net(torch.randn(1,3,32,32), with_latent=true)
+#    #print(y.size())
+#
+#    from torchsummary import summary
+#    summary(net, input_size=(3, 32, 32))
+#
+#test()
 

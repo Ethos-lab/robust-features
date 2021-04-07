@@ -29,10 +29,10 @@ class VGG(nn.Module):
             nn.Linear(512 * 7 * 7, 4096),
             nn.ReLU(),
             nn.Dropout(),
-            nn.Linear(4096, 4096),
+            nn.Linear(4096, 2048),
             nn.ReLU(),
             nn.Dropout(),
-            nn.Linear(4096, num_classes)
+            nn.Linear(2048, num_classes)
         )
         self.last_relu = nn.ReLU()
         self.last_relu_fake = FakeReLUM()
@@ -188,3 +188,13 @@ def vgg19_bn(pretrained=False, progress=True, **kwargs):
         progress (bool): If True, displays a progress bar of the download to stderr
     """
     return _vgg('vgg19_bn', 'E', True, pretrained, progress, **kwargs)
+
+#def test():
+#    net = vgg11_bn(num_classes=9)
+#    #_, y = net(torch.randn(1,3,224,224), with_latent=True)
+#    #print(y.size())
+#
+#    from torchsummary import summary
+#    summary(net, input_size=(3, 224, 224))
+#
+#test()
