@@ -165,7 +165,7 @@ def main():
         "do_tqdm": False
     }
     acc = test(amodel, test_loader, make_adv=True, attack_kwargs=attack_kwargs)
-    print(f"Adversarial accuracy (0.25): {acc:.4f}%")
+    print(f"Adversarial accuracy (eps: {args.eps}): {acc:.4f}%")
 
 
 if __name__ == "__main__":
