@@ -305,11 +305,21 @@ def train_model(args, model, loaders, *, checkpoint=None, dp_device_ids=None,
 
     # Timestamp for training start time
     start_time = time.time()
-
+    running_time_avg = 0.0
     for epoch in range(start_epoch, args.epochs):
         # train for one epoch
+        print(f'Epoch {epoch}/{args.epochs} (@ {running_time_avg} secs/epoch)')
+        start_t = time.time()
         train_prec1, train_loss = _model_loop(args, 'train', train_loader, 
                 model, opt, epoch, args.adv_train, writer)
+
+        # update running time average
+        curr_time = time.time() - start_t
+        if epoch == 0:
+            running_time_avg = curr_time
+        else:
+            running_time_avg = running_time_avg + ((curr_time - running_time_avg) / epoch)
+
         last_epoch = (epoch == (args.epochs - 1))
 
         # evaluate on validation set
@@ -325,6 +335,7 @@ def train_model(args, model, loaders, *, checkpoint=None, dp_device_ids=None,
         def save_checkpoint(filename):
             ckpt_save_path = os.path.join(args.out_dir if not store else \
                                           store.path, filename)
+            sd_info['time_per_epoch'] = running_time_avg
             ch.save(sd_info, ckpt_save_path, pickle_module=dill)
 
         save_its = args.save_ckpt_iters

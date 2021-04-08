@@ -84,10 +84,10 @@ class ModelwithInputNormalization(torch.nn.Module):
         return output
 
 
-def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, scheduler, logger, start_epoch,
-          best_acc, running_time_avg, attack=None):
+def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, scheduler, logger,
+          start_epoch, best_acc, running_time_avg, attack=None):
 
-    for epoch in range(start_epoch, args.epochs):  # loop over the dataset multiple times
+    for epoch in range(start_epoch, args.epochs):
         logger.info(f"Epoch: {epoch}/{args.epochs} (@ {running_time_avg:.4f} secs/epoch)")
         net.train()
 
