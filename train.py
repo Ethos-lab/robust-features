@@ -17,6 +17,7 @@ from robustness.tools import helpers, folder
 from robustness.datasets import DATASETS
  
 from attacks import PGD_l2
+from logfile_to_wandb import upload_to_wandb
 
 
 def get_args():
@@ -52,6 +53,11 @@ def get_args():
     parser.add_argument("--l2-weight", type=float, default=1.)
     # testing hyperparams
     parser.add_argument("--val-batch-size", type=int, default=128, help="initial batch size")
+    # wandb args
+    parser.add_argument("--upload-to-wandb", action="store_true", help="upload log.txt to wandb for visualization")
+    parser.add_argument("--wandb-username", type=str, default="pratik18v")
+    parser.add_argument("--wandb-project-name", type=str, default="robust-features")
+    parser.add_argument("--wandb-exp-name", type=str, default="")
 
     args = parser.parse_args()
 
@@ -218,7 +224,8 @@ def main():
     if not os.path.exists(args.save_dir):
         os.mkdir(args.save_dir)
 
-    logger.addHandler(logging.FileHandler(os.path.join(args.save_dir, "log.txt")))
+    logfile_path = os.path.join(args.save_dir, "log.txt")
+    logger.addHandler(logging.FileHandler(logfile_path))
     logger.addHandler(logging.StreamHandler(sys.stdout))
 
     for arg, value in sorted(vars(args).items()):
@@ -320,6 +327,10 @@ def main():
     logger.info("Started Training !!!")
     train(args, norm_model, rob_model, train_loader, val_loader, criterion, optimizer, scheduler,
           logger, start_epoch, best_acc, running_time_avg, attack)
+
+    # Upload logfile to wandb
+    if args.upload_to_wandb:
+        upload_to_wandb(logfile_path, args.wandb_project_name, args.wandb_username, args.wandb_exp_name)
 
 
 if __name__ == "__main__":
