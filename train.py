@@ -54,7 +54,8 @@ def get_args():
     # testing hyperparams
     parser.add_argument("--val-batch-size", type=int, default=128, help="initial batch size")
     # wandb args
-    parser.add_argument("--upload-to-wandb", action="store_true", help="upload log.txt to wandb for visualization")
+    parser.add_argument("--upload-to-wandb", action="store_true",
+                        help="upload log.txt to wandb for visualization")
     parser.add_argument("--wandb-username", type=str, default="pratik18v")
     parser.add_argument("--wandb-project-name", type=str, default="robust-features")
     parser.add_argument("--wandb-exp-name", type=str, default="")

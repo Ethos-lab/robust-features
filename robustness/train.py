@@ -13,6 +13,7 @@ import os
 import time
 import warnings
 
+
 if int(os.environ.get("NOTEBOOK_MODE", 0)) == 1:
     from tqdm import tqdm_notebook as tqdm
 else:
@@ -22,6 +23,7 @@ try:
     from apex import amp
 except Exception as e:
     warnings.warn('Could not import amp.')
+
 
 def check_required_args(args, eval_only=False):
     """

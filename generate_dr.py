@@ -58,7 +58,6 @@ def main():
         "dataset": dataset,
         "resume_path": f"./checkpoints/{args.model_dir}/checkpoint.pt.best"
     }
-
     model, _ = model_utils.make_and_restore_model(**model_kwargs)
     model.eval()
 
