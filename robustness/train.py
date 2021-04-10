@@ -308,7 +308,7 @@ def train_model(args, model, loaders, *, checkpoint=None, dp_device_ids=None,
     running_time_avg = 0.0
     for epoch in range(start_epoch, args.epochs):
         # train for one epoch
-        print(f'Epoch {epoch}/{args.epochs} (@ {running_time_avg} secs/epoch)')
+        print(f'Epoch {epoch}/{args.epochs} (@ {running_time_avg:.4f} secs/epoch)')
         start_t = time.time()
         train_prec1, train_loss = _model_loop(args, 'train', train_loader, 
                 model, opt, epoch, args.adv_train, writer)

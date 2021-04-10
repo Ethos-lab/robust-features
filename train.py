@@ -258,11 +258,11 @@ def main():
                                   num_workers=args.num_workers, pin_memory=True)
 
         #NOTE: Need path to standard data to load val set
-        _, val_loader = dataset.make_loaders(only_val=True,
-                                             batch_size=args.val_batch_size,
-                                             shuffle_val=False,
-                                             workers=args.num_workers
-                                             )
+        _,val_loader = dataset.make_loaders(only_val=True,
+                                            batch_size=args.val_batch_size,
+                                            shuffle_val=False,
+                                            workers=args.num_workers
+                                            )
 
     train_loader = helpers.DataPrefetcher(train_loader)
     val_loader = helpers.DataPrefetcher(val_loader)
