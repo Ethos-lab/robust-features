@@ -70,8 +70,8 @@ def main():
     # PGD parameters
     kwargs = {
         "custom_loss": inversion_loss,
-        "constraint":args.constraint,
-        "eps":1e3, #no restriction on how much to change image
+        "constraint": args.constraint,
+        "eps": 1e3, #no restriction on how much to change image
         "step_size": args.step_size,
         "iterations": args.iterations, 
         "do_tqdm": False,
@@ -101,7 +101,7 @@ def main():
         _, xadv = model(im_n.cuda(), rep.clone(), make_adv=True, **kwargs)
 
         xadvs.append(xadv.detach().cpu())
-        labels.append(label)
+        labels.append(label.cpu())
         pbar.update(1)
 
     pbar.close()

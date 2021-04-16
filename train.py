@@ -86,16 +86,16 @@ class ModelwithInputNormalization(torch.nn.Module):
 
 
 def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, scheduler, logger,
-          start_epoch, best_acc, running_time_avg, attack=None):
+          start_epoch, best_acc, r_time_avg, attack=None):
 
     for epoch in range(start_epoch, args.epochs):
-        logger.info(f"Epoch: {epoch}/{args.epochs} (@ {running_time_avg:.4f} secs/epoch)")
+        logger.info(f"Epoch: {epoch}/{args.epochs} (@ {r_time_avg:.4f} secs/epoch)")
         net.train()
 
         # Init counters
-        running_loss = 0.0
-        running_xent = 0.0
-        running_fl = 0.0
+        r_loss = 0.0
+        r_xent = 0.0
+        r_fl = 0.0
         total = 0.0
         correct = 0.0
 
@@ -110,7 +110,8 @@ def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, schedu
 
             #TODO: forwarding through net before f_rob causes GPU to run out of memory. Why?
             if args.l2_weight != 0:
-                (_, rep_rob), _ = f_rob(images, with_latent=True)
+                with torch.no_grad():
+                    (_, rep_rob), _ = f_rob(images, with_latent=True)
                 outputs, rep_std = net(images, with_latent=True)
                 loss_feat = torch.mean(torch.div(
                                 torch.norm(rep_std - rep_rob.detach(), dim=1),
@@ -126,10 +127,12 @@ def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, schedu
             loss.backward()
             optimizer.step()
 
-            running_xent += loss_xent.item()
-            running_fl += loss_feat.item()
-            running_loss += loss.item()
+            r_xent += loss_xent.item()
+            r_fl += loss_feat.item()
+            r_loss += loss.item()
 
+            pbar.set_description(f"loss: {r_loss/(i+1):.4f} ({r_xent/(i+1):.4f}, {r_fl/(i+1):.4f})")
+ 
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
@@ -140,19 +143,23 @@ def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, schedu
         # update running time average
         curr_time = time.time() - start_t
         if epoch == 0:
-            running_time_avg = curr_time 
+            r_time_avg = curr_time 
         else:
-            running_time_avg = running_time_avg + ((curr_time - running_time_avg) / epoch)
+            r_time_avg = r_time_avg + ((curr_time - r_time_avg) / epoch)
 
         # evaluate at end of each epoch
         train_acc = 100 * correct / total
         logger.info(f"Train | "+\
-                    f"loss: {running_loss/len(trainloader):.4f} ({running_xent/len(trainloader):.4f}, {running_fl/len(trainloader):.4f}), "+\
+                    f"loss: {r_loss/len(trainloader):.4f} ({r_xent/len(trainloader):.4f}, {r_fl/len(trainloader):.4f}), "+\
                     f"accuracy: {train_acc:.4f}%")
 
         val_nat_acc, val_adv_acc = test(net, valloader, attack)
-        logger.info(f"Val | nat accuracy: {val_nat_acc:.4f}%, adv accuracy: {val_adv_acc:.4f}%")
-        val_acc = val_adv_acc if attack != None else val_nat_acc
+        if attack:
+            logger.info(f"Val | nat accuracy: {val_nat_acc:.4f}%, adv accuracy: {val_adv_acc:.4f}%")
+            val_acc = val_adv_acc
+        else:
+            logger.info(f"Val | nat accuracy: {val_nat_acc:.4f}%")
+            val_acc = val_nat_acc
 
         if val_acc > best_acc:
             logger.info("Saving model !!!")
@@ -165,14 +172,14 @@ def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, schedu
                     "best_acc": best_acc,
                     "val_nat_acc": val_nat_acc,
                     "val_adv_acc": val_adv_acc,
-                    "time_per_epoch": running_time_avg
+                    "time_per_epoch": r_time_avg
                 },
                 os.path.join(args.save_dir, "checkpoint.pt.best")
             )
 
         scheduler.step()
 
-    logger.info(f"Finished Training (@ {running_time_avg:.4f} secs/epoch)!!!")
+    logger.info(f"Finished Training (@ {r_time_avg:.4f} secs/epoch)!!!")
 
 
 def test(net, valloader, attack):
@@ -214,7 +221,7 @@ def main():
     if args.save_dir == "":
         if args.l2_weight == 0:
             assert args.xent_weight == 1.0
-            args.save_dir = f"./checkpoints/{args.dataset}_{args.student_arch}_nat"
+            args.save_dir = f"./checkpoints/{args.dataset}_{args.student_arch}"
         else:
             args.teacher_arch = args.teacher_load_path.split("_")[1]
             args.save_dir = f"./checkpoints/{args.dataset}-feat_loss=l2-teacher={args.teacher_arch}-student={args.student_arch}-xent_weight={args.xent_weight}-l2_weight={args.l2_weight}"
@@ -250,10 +257,9 @@ def main():
                     transforms.RandomHorizontalFlip(),
                     transforms.ColorJitter(.25,.25,.25),
                     transforms.RandomRotation(2),
-                    transforms.ToTensor(),
-                ])
-        train_data = torch.cat(torch.load(os.path.join(args.rob_dataroot, "CIFAR_ims")))
-        train_labels = torch.cat(torch.load(os.path.join(args.rob_dataroot, "CIFAR_lab")))
+                    transforms.ToTensor()])
+        train_data = torch.cat(torch.load(os.path.join(args.rob_dataroot, "CIFAR_ims"))).cpu()
+        train_labels = torch.cat(torch.load(os.path.join(args.rob_dataroot, "CIFAR_lab"))).cpu()
         train_set = folder.TensorDataset(train_data, train_labels, transform=TRAIN_TRANSFORMS_DEFAULT(32))
         train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True,
                                   num_workers=args.num_workers, pin_memory=True)
@@ -262,8 +268,7 @@ def main():
         _,val_loader = dataset.make_loaders(only_val=True,
                                             batch_size=args.val_batch_size,
                                             shuffle_val=False,
-                                            workers=args.num_workers
-                                            )
+                                            workers=args.num_workers)
 
     train_loader = helpers.DataPrefetcher(train_loader)
     val_loader = helpers.DataPrefetcher(val_loader)
@@ -299,7 +304,7 @@ def main():
         optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         start_epoch = ckpt["epoch"] + 1
         best_acc = ckpt["best_acc"]
-        running_time_avg = ckpt["time_per_epoch"]
+        r_time_avg = ckpt["time_per_epoch"]
 
         # clear out memory
         del ckpt
@@ -309,11 +314,11 @@ def main():
         if args.finetune:
             start_epoch = 0
             best_acc = 0
-            running_time_avg = 0
+            r_time_avg = 0
     else:
         start_epoch = 0
         best_acc = 0
-        running_time_avg = 0
+        r_time_avg = 0
 
     scheduler = None
     if args.milestones != "":
@@ -327,7 +332,7 @@ def main():
 
     logger.info("Started Training !!!")
     train(args, norm_model, rob_model, train_loader, val_loader, criterion, optimizer, scheduler,
-          logger, start_epoch, best_acc, running_time_avg, attack)
+          logger, start_epoch, best_acc, r_time_avg, attack)
 
     # Upload logfile to wandb
     if args.upload_to_wandb:

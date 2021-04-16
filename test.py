@@ -122,8 +122,7 @@ def main():
     _, test_loader = dataset.make_loaders(only_val=True,
                                           batch_size=args.batch_size,
                                           shuffle_val=False,
-                                          workers=args.num_workers
-                                          )
+                                          workers=args.num_workers)
     test_loader = helpers.DataPrefetcher(test_loader)
 
     if args.dataset == "cifar":
@@ -149,9 +148,7 @@ def main():
     amodel = AttackerModel(model, dataset).cuda()
     amodel.eval()
 
-    # Testing begins
-
-    # Natural accuracy
+    # Clean eval
     acc = test(amodel, test_loader, make_adv=False)
     print(f"Natural accuracy: {acc:.4f}%")
 
