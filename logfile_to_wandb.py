@@ -38,7 +38,8 @@ def upload_to_wandb(file_location, project_name, username, exp_name, dryrun=Fals
            li == "Saving model !!!" or \
            li == "Finished Training !!!" or \
            li.startswith("Argument") or \
-           li.startswith("Epoch"):
+           li.startswith("Epoch") or \
+           li.startswith("Resuming"):
             continue
 
         tokens = li.split(' ')

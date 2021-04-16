@@ -2,6 +2,7 @@ import os
 import sys
 import tqdm
 import time
+import dill
 import logging
 import argparse
 
@@ -12,10 +13,11 @@ from torch.utils.data import DataLoader
 import torchvision
 from torchvision import transforms
 
-from robustness import model_utils, datasets, cifar_models, imagenet_models
+from robustness import cifar_models, imagenet_models
 from robustness.tools import helpers, folder
 from robustness.datasets import DATASETS
- 
+
+from utils import load_checkpoint
 from attacks import PGD_l2
 from logfile_to_wandb import upload_to_wandb
 
@@ -39,7 +41,6 @@ def get_args():
                         help="overwrites automatically created save_dir")
     parser.add_argument("--resume", type=str, default="",
                         help="resume training from the checkpoint saved at this path")
-    parser.add_argument("--finetune", action="store_true")
     # training hyperparams
     parser.add_argument("--lr", type=float, default=0.1, help="initial learning rate")
     parser.add_argument("--batch-size", type=int, default=128, help="initial batch size")
@@ -66,10 +67,10 @@ def get_args():
 
 
 class ModelwithInputNormalization(torch.nn.Module):
-    def __init__(self, model, mean, std):
+    def __init__(self, net, mean, std):
         super(ModelwithInputNormalization, self).__init__()
         self.normalizer = helpers.InputNormalize(mean, std)
-        self.model = model
+        self.net = net
 
     def forward(self,  inp, with_latent=False, fake_relu=False, no_relu=False):
         normalized_inp = self.normalizer(inp)
@@ -79,18 +80,19 @@ class ModelwithInputNormalization(torch.nn.Module):
         if no_relu and fake_relu:
             raise ValueError("Options 'no_relu' and 'fake_relu' are exclusive")
 
-        output = self.model(normalized_inp, with_latent=with_latent,
-                            fake_relu=fake_relu, no_relu=no_relu)
+        output = self.net(normalized_inp, with_latent=with_latent,
+                          fake_relu=fake_relu, no_relu=no_relu)
 
         return output
 
 
-def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, scheduler, logger,
+def train(args, s_model, t_model, trainloader, valloader, criterion, optimizer, scheduler, logger,
           start_epoch, best_acc, r_time_avg, attack=None):
 
+    num_batches = len(trainloader)
     for epoch in range(start_epoch, args.epochs):
         logger.info(f"Epoch: {epoch}/{args.epochs} (@ {r_time_avg:.4f} secs/epoch)")
-        net.train()
+        s_model.train()
 
         # Init counters
         r_loss = 0.0
@@ -100,7 +102,7 @@ def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, schedu
         correct = 0.0
 
         start_t = time.time()
-        pbar = tqdm.tqdm(total=len(trainloader))
+        pbar = tqdm.tqdm(total=num_batches)
         for i, data in enumerate(trainloader, 0):
             images, labels = data
             images, labels = images.cuda(), labels.cuda()
@@ -108,17 +110,16 @@ def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, schedu
             # zero the parameter gradients
             optimizer.zero_grad()
 
-            #TODO: forwarding through net before f_rob causes GPU to run out of memory. Why?
             if args.l2_weight != 0:
+                outputs, rep_std = s_model(images, with_latent=True)
                 with torch.no_grad():
-                    (_, rep_rob), _ = f_rob(images, with_latent=True)
-                outputs, rep_std = net(images, with_latent=True)
+                    _, rep_rob = t_model(images, with_latent=True)
                 loss_feat = torch.mean(torch.div(
                                 torch.norm(rep_std - rep_rob.detach(), dim=1),
                                 torch.norm(rep_rob.detach(), dim=1)
                             ))
             else:
-                outputs, rep_std = net(images, with_latent=True)
+                outputs, rep_std = s_model(images, with_latent=True)
                 loss_feat = torch.tensor(0)
 
             loss_xent = criterion(outputs, labels)
@@ -131,8 +132,9 @@ def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, schedu
             r_fl += loss_feat.item()
             r_loss += loss.item()
 
-            pbar.set_description(f"loss: {r_loss/(i+1):.4f} ({r_xent/(i+1):.4f}, {r_fl/(i+1):.4f})")
- 
+            pbar.set_description(
+                f"Train | loss: {r_loss/(i+1):.4f} ({r_xent/(i+1):.4f}, {r_fl/(i+1):.4f})")
+
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
@@ -143,30 +145,29 @@ def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, schedu
         # update running time average
         curr_time = time.time() - start_t
         if epoch == 0:
-            r_time_avg = curr_time 
+            r_time_avg = curr_time
         else:
             r_time_avg = r_time_avg + ((curr_time - r_time_avg) / epoch)
 
         # evaluate at end of each epoch
         train_acc = 100 * correct / total
         logger.info(f"Train | "+\
-                    f"loss: {r_loss/len(trainloader):.4f} ({r_xent/len(trainloader):.4f}, {r_fl/len(trainloader):.4f}), "+\
-                    f"accuracy: {train_acc:.4f}%")
+            f"loss: {r_loss/num_batches:.4f} ({r_xent/num_batches:.4f}, {r_fl/num_batches:.4f}), "+\
+            f"accuracy: {train_acc:.4f}%")
 
-        val_nat_acc, val_adv_acc = test(net, valloader, attack)
+        val_nat_acc, val_adv_acc = test(s_model, valloader, attack)
         if attack:
-            logger.info(f"Val | nat accuracy: {val_nat_acc:.4f}%, adv accuracy: {val_adv_acc:.4f}%")
+            logger.info(f"Val | std accuracy: {val_nat_acc:.4f}%, adv accuracy: {val_adv_acc:.4f}%")
             val_acc = val_adv_acc
         else:
-            logger.info(f"Val | nat accuracy: {val_nat_acc:.4f}%")
+            logger.info(f"Val | std accuracy: {val_nat_acc:.4f}%")
             val_acc = val_nat_acc
 
         if val_acc > best_acc:
             logger.info("Saving model !!!")
             best_acc = val_acc
-            # save model
             torch.save({
-                    "state_dict": net.model.state_dict(),
+                    "state_dict": s_model.net.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                     "epoch": epoch,
                     "best_acc": best_acc,
@@ -182,8 +183,8 @@ def train(args, net, f_rob, trainloader, valloader, criterion, optimizer, schedu
     logger.info(f"Finished Training (@ {r_time_avg:.4f} secs/epoch)!!!")
 
 
-def test(net, valloader, attack):
-    net.eval()
+def test(model, valloader, attack):
+    model.eval()
 
     correct = 0
     adv_correct = 0
@@ -194,14 +195,14 @@ def test(net, valloader, attack):
             images, labels = images.cuda(), labels.cuda()
 
             # forward pass
-            outputs = net(images)
+            outputs = model(images)
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
 
             if attack:
-                adv_images = attack(net, images, labels)
-                outputs = net(adv_images)
+                adv_images = attack(model, images, labels)
+                outputs = model(adv_images)
                 _, predicted = torch.max(outputs.data, 1)
                 adv_correct += (predicted == labels).sum().item()
 
@@ -228,7 +229,12 @@ def main():
 
         if args.exp_name != "":
            args.save_dir += f"-{args.exp_name}"
-
+    else:
+        if args.l2_weight == 0:
+            assert args.xent_weight == 1.0
+        else:
+            args.teacher_arch = args.teacher_load_path.split("_")[1]
+ 
     if not os.path.exists(args.save_dir):
         os.mkdir(args.save_dir)
 
@@ -273,48 +279,45 @@ def main():
     train_loader = helpers.DataPrefetcher(train_loader)
     val_loader = helpers.DataPrefetcher(val_loader)
 
-    # Prepare standard and robust model
+    # Prepare teacher model
     if args.l2_weight != 0:
-        model_kwargs = {
-            "arch": args.teacher_arch,
-            "dataset": dataset,
-            "resume_path": args.teacher_load_path
-        }
-        rob_model, _ = model_utils.make_and_restore_model(**model_kwargs)
-        rob_model.eval()
-    else:
-        rob_model = None
+        if args.dataset == "cifar":
+            t_model = cifar_models.__dict__[args.teacher_arch](num_classes=10)
+        else:
+            t_model = imagenet_models.__dict__[args.teacher_arch](num_classes=9)
 
-    if args.dataset == "cifar":
-        model = cifar_models.__dict__[args.student_arch](num_classes=10)
-    else:
-        model = imagenet_models.__dict__[args.student_arch](num_classes=9)
-    # Add normalizer
-    norm_model = ModelwithInputNormalization(model, dataset.mean, dataset.std).cuda()
-
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
-
-    # Load pre-trained model
-    if args.resume != "":
-        assert os.path.exists(args.resume), f"Invalid load path: {args.resume}"
-
-        ckpt = torch.load(args.resume)
-        model.load_state_dict(ckpt["state_dict"])
-        optimizer.load_state_dict(ckpt["optimizer_state_dict"])
-        start_epoch = ckpt["epoch"] + 1
-        best_acc = ckpt["best_acc"]
-        r_time_avg = ckpt["time_per_epoch"]
-
-        # clear out memory
+        ckpt = load_checkpoint(args.teacher_load_path)
+        t_model.load_state_dict(ckpt["model_sd"])
+        print(f"Successfully loaded teacher checkpoint from epoch: {ckpt['load_epoch']} !!!")
         del ckpt
 
-        logger.info(f"Loading pre-trained model !!!")
-        # Reset counters
-        if args.finetune:
-            start_epoch = 0
-            best_acc = 0
-            r_time_avg = 0
+        t_model = ModelwithInputNormalization(t_model, dataset.mean, dataset.std).cuda()
+        t_model.eval()
+    else:
+        t_model = None
+
+    # Prepare student model
+    if args.dataset == "cifar":
+        s_model = cifar_models.__dict__[args.student_arch](num_classes=10)
+    else:
+        s_model = imagenet_models.__dict__[args.student_arch](num_classes=9)
+    s_model = ModelwithInputNormalization(s_model, dataset.mean, dataset.std).cuda()
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(s_model.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
+
+    # Resume student training
+    if args.resume != "":
+        assert os.path.exists(args.resume), f"Invalid load path: {args.resume}"
+        ckpt = load_checkpoint(args.resume, mode="train")
+        s_model.net.load_state_dict(ckpt["model_sd"])
+        optimizer.load_state_dict(ckpt["optim_sd"])
+        start_epoch = ckpt["load_epoch"] + 1
+        best_acc = ckpt["best_acc"]
+        r_time_avg = ckpt["r_time_avg"]
+        del ckpt
+
+        logger.info(f"Resuming training from epoch {start_epoch} !!!")
     else:
         start_epoch = 0
         best_acc = 0
@@ -331,7 +334,7 @@ def main():
     attack = None
 
     logger.info("Started Training !!!")
-    train(args, norm_model, rob_model, train_loader, val_loader, criterion, optimizer, scheduler,
+    train(args, s_model, t_model, train_loader, val_loader, criterion, optimizer, scheduler,
           logger, start_epoch, best_acc, r_time_avg, attack)
 
     # Upload logfile to wandb

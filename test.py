@@ -1,13 +1,12 @@
-import dill
 import tqdm
 import argparse
 import torch as ch
 
-from robustness import model_utils, datasets, cifar_models, imagenet_models
+from robustness import cifar_models, imagenet_models
 from robustness.attacker import AttackerModel
 from robustness.datasets import DATASETS
 from robustness.tools import helpers
-
+from utils import load_checkpoint
 
 '''
 Sample PGD hyperparameters
@@ -131,18 +130,10 @@ def main():
         model = imagenet_models.__dict__[args.model](num_classes=9)
 
     # Loading model checkpoint
-    checkpoint = ch.load(args.load_path, pickle_module=dill)
-    state_dict_path = "model"
-    if not ("model" in checkpoint):
-        state_dict_path = "state_dict"
-
-    sd = checkpoint[state_dict_path]
-    sd = {k.replace("module.model.", ""):v for k,v in sd.items() if ("attacker" not in k) and ("normalizer" not in k)}
-    model.load_state_dict(sd)
-    print(f"Successfully loaded checkpoint from epoch: {checkpoint['epoch']}")
-
-    # clear out memory
-    del checkpoint
+    ckpt = load_checkpoint(args.load_path)
+    model.load_state_dict(ckpt['model_sd'])
+    print(f"Successfully loaded checkpoint from epoch: {ckpt['load_epoch']} !!!")
+    del ckpt
 
     # wrap nn.module object into AttackerModel to make it compatible with robustness toolbox
     amodel = AttackerModel(model, dataset).cuda()
