@@ -2,7 +2,6 @@ import os
 import sys
 import tqdm
 import time
-import dill
 import logging
 import argparse
 
@@ -17,7 +16,7 @@ from robustness import cifar_models, imagenet_models
 from robustness.tools import helpers, folder
 from robustness.datasets import DATASETS
 
-from utils import load_checkpoint
+from utils import load_checkpoint, ModelwithInputNormalization
 from attacks import PGD_l2
 from logfile_to_wandb import upload_to_wandb
 
@@ -64,26 +63,6 @@ def get_args():
     args = parser.parse_args()
 
     return args
-
-
-class ModelwithInputNormalization(torch.nn.Module):
-    def __init__(self, net, mean, std):
-        super(ModelwithInputNormalization, self).__init__()
-        self.normalizer = helpers.InputNormalize(mean, std)
-        self.net = net
-
-    def forward(self,  inp, with_latent=False, fake_relu=False, no_relu=False):
-        normalized_inp = self.normalizer(inp)
-
-        if no_relu and (not with_latent):
-            print("WARNING: 'no_relu' has no visible effect if 'with_latent is False.")
-        if no_relu and fake_relu:
-            raise ValueError("Options 'no_relu' and 'fake_relu' are exclusive")
-
-        output = self.net(normalized_inp, with_latent=with_latent,
-                          fake_relu=fake_relu, no_relu=no_relu)
-
-        return output
 
 
 def train(args, s_model, t_model, trainloader, valloader, criterion, optimizer, scheduler, logger,
