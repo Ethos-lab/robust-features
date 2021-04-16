@@ -13,7 +13,7 @@ And then `pip install wandb` and `wandb init`
 def upload_to_wandb(file_location, project_name, username, exp_name, dryrun=False):
 
     # Get Epoch, Train Acc, Test Acc, Train Loss, Test Loss
-    assert os.path.exists(file_location), "Invalid path to log.txt" 
+    assert os.path.exists(file_location), "Invalid path to log.txt"
     with open(file_location, 'r') as f:
         lines = f.readlines()
 
@@ -32,7 +32,7 @@ def upload_to_wandb(file_location, project_name, username, exp_name, dryrun=Fals
         li = l.strip()
 
         if not li:
-            break 
+            break
 
         if li == "Started Training !!!" or \
            li == "Saving model !!!" or \

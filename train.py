@@ -9,7 +9,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-import torchvision
 from torchvision import transforms
 
 from robustness import cifar_models, imagenet_models
@@ -213,7 +212,7 @@ def main():
             assert args.xent_weight == 1.0
         else:
             args.teacher_arch = args.teacher_load_path.split("_")[1]
- 
+
     if not os.path.exists(args.save_dir):
         os.mkdir(args.save_dir)
 
