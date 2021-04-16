@@ -53,9 +53,9 @@ def main():
 
     model = imagenet_models.__dict__[args.model](num_classes=9)
 
-#    ckpt = load_checkpoint(args.load_path)
-#    model.load_state_dict(ckpt['model_sd'])
-#    print(f"Successfully loaded checkpoint from epoch: {ckpt['load_epoch']} !!!")
+    ckpt = load_checkpoint(args.load_path)
+    model.load_state_dict(ckpt['model_sd'])
+    print(f"Successfully loaded checkpoint from epoch: {ckpt['load_epoch']} !!!")
 
     mean = ch.tensor([0.4717, 0.4499, 0.3837])
     std = ch.tensor([0.2600, 0.2516, 0.2575])
