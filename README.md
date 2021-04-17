@@ -97,6 +97,6 @@ CUDA_VISIBLE_DEVICES=0 python generate_dr.py \
     --step-size 0.1 \
     --iterations 1000
 ```
-Robust dataset will be saved at `{dataroot}/(model_dir}`
+Robust dataset will be saved at `{dataroot}/(model_dir}`.
 
 7. To train with robust data, use same commands as 4. Replace arg `load_std_data` with arg `rob_dataroot`. Pass save path from previous step to this arg.
