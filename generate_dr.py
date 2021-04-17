@@ -17,7 +17,6 @@ def get_args():
                         default="cifar", help="dataset")
     parser.add_argument("--dataroot", type=str, default="/media/big_hdd/data/CIFAR10",
                         help="path to dataset")
-    parser.add_argument("--model", type=str, default="resnet50")
     parser.add_argument("--model-dir", type=str, default="cifar_resnet50_l2_1_0")
     parser.add_argument("--batch-size", type=int, default=50, help="initial batch size")
     parser.add_argument("--num-workers", type=int, default=4, help="for dataloader")
@@ -37,6 +36,9 @@ def main():
     # Get arguments
     args = get_args()
 
+    # NOTE: Model arch inferred from arg: model_dir.
+    args.model = args.model_dir.split("_")[1]
+ 
     args.save_dir = f"{args.dataroot}_constructed/{args.model_dir}"
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir, exist_ok=True)

@@ -17,8 +17,7 @@ def get_args():
     parser = argparse.ArgumentParser(description="Robust data generation script.")
     parser.add_argument("--dataroot", type=str, default="/media/big_hdd/data/imagenet/train",
                         help="path to dataset")
-    parser.add_argument("--model", type=str, default="resnet50")
-    parser.add_argument("--model-dir", type=str, default="cifar_resnet50_l2_1_0")
+    parser.add_argument("--model-dir", type=str, default="rimagenet_alexnet_l2_3_0")
 
     args = parser.parse_args()
 
@@ -43,6 +42,9 @@ def main():
 
     # Get arguments
     args = get_args()
+
+    # NOTE: Model arch inferred from arg: model_dir.
+    args.model = args.model_dir.split("_")[1]
     args.load_path = f"./checkpoints/{args.model_dir}/checkpoint.pt.best"
 
     args.save_dir = f"{args.dataroot.replace('train', 'train_feats')}/{args.model_dir}"
