@@ -60,7 +60,7 @@ CUDA_VISIBLE_DEVICES=0 python train_cifar.py \
 CUDA_VISIBLE_DEVICES=0 python train_imagenet.py \
     --dataroot /path/to/imagenet \
     --load-std-data \
-    --load-feats rimagenet_resnet50_l2_1_0 \
+    --load-feats rimagenet_alexnet_l2_3_0 \
     --student-arch resnet50 \
     --xent-weight 0.001 \
     --l2-weight 1.0 \
@@ -74,7 +74,6 @@ The best checkpoint will be saved at: `./checkpoints/{dataset}-feat_loss=l2-teac
 If the value for arg `save_dir` is provided, best checkpoint will be saved at: `{save_dir}/checkpoint.pt.best`.
 
 5. Example command to test a model:
-
 ```
 CUDA_VISIBLE_DEVICES=0 python test.py \
     --dataset cifar \
@@ -88,3 +87,16 @@ CUDA_VISIBLE_DEVICES=0 python test.py \
     --constraint 2
 ```
 
+6. Generate robust dataset (D_r) (both cifar and restricted_imagenet):
+```
+CUDA_VISIBLE_DEVICES=0 python generate_dr.py \
+    --dataset cifar \
+    --dataroot /path/to/cifar \
+    --batch-size 50 \
+    --model-dir cifar_resnet50_l2_1_0 \
+    --step-size 0.1 \
+    --iterations 1000
+```
+Robust dataset will be saved at `{dataroot}/(model_dir}`
+
+7. To train with robust data, use same commands as 4. Replace arg `load_std_data` with arg `rob_dataroot`. Pass save path from previous step to this arg.
