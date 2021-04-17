@@ -4,7 +4,7 @@
 
 1. Use requirements.txt or environment.yml to recreate virtual environment.
 
-2. Adversarially train teacher model using robustness toolbox:
+2. Adversarially train teacher model using robustness toolbox (cifar10 and restricted_imagenet):
 
 ```
 CUDA_VISIBLE_DEVICES=0 python -m robustness.main \
@@ -32,11 +32,17 @@ CUDA_VISIBLE_DEVICES=0 python -m robustness.main \
 The best checkpoint will be saved at: `{out_dir}/{exp_name}/checkpoint.pt.best`.
 NOTE: Set attack_lr to eps/5.
 
-3. Train a student using the robust teacher model:
+3. Extract robust features (restricted_imagenet only):
+```
+CUDA_VISIBLE_DEVICES=0 python extract_imagenet_feats.py \
+    --dataroot /path/to/imagenet/train \
+    --model-dir rimagenent_alexnet_l2_3_0
+```
+
+4. (a) Train a student using the robust teacher model (cifar10):
 
 ```
-CUDA_VISIBLE_DEVICES=0 python train.py \
-    --dataset cifar \
+CUDA_VISIBLE_DEVICES=0 python train_cifar.py \
     --dataroot /path/to/cifar \
     --load-std-data \
     --teacher-load-path /path/to/teacher/model.pt \
@@ -45,13 +51,29 @@ CUDA_VISIBLE_DEVICES=0 python train.py \
     --l2-weight 1.0 \
     --epochs 100 \
     --milestones 65,90 \
+    --lr 0.1 \
     --batch-size 128
 ```
-The best checkpoint will be saved at: `./checkpoints/{dataset}-feat_loss=l2-teacher={teacher_arch}-student={student_arch}-xent_weight={xent_weight}-l2_weight={l2_weight}-{exp_name (optional)}/checkpoint.pt.best`. The value for `teacher_arch` is inferred from `teacher_load_path`.
+4. (b) Train a student using the robust teacher model (imagenet):
+
+```
+CUDA_VISIBLE_DEVICES=0 python train_imagenet.py \
+    --dataroot /path/to/imagenet \
+    --load-std-data \
+    --load-feats rimagenet_resnet50_l2_1_0 \
+    --student-arch resnet50 \
+    --xent-weight 0.001 \
+    --l2-weight 1.0 \
+    --epochs 100 \
+    --milestones 90 \
+    --lr 0.01 \
+    --batch-size 64
+```
+The best checkpoint will be saved at: `./checkpoints/{dataset}-feat_loss=l2-teacher={teacher_arch}-student={student_arch}-xent_weight={xent_weight}-l2_weight={l2_weight}-{exp_name (optional)}/checkpoint.pt.best`.
 
 If the value for arg `save_dir` is provided, best checkpoint will be saved at: `{save_dir}/checkpoint.pt.best`.
 
-4. Example command to test a model:
+5. Example command to test a model:
 
 ```
 CUDA_VISIBLE_DEVICES=0 python test.py \
@@ -65,3 +87,4 @@ CUDA_VISIBLE_DEVICES=0 python test.py \
     --pgd-iters 20 \
     --constraint 2
 ```
+
