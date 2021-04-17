@@ -121,7 +121,8 @@ class DataSet(object):
 
     def make_loaders(self, workers, batch_size, data_aug=True, subset=None, 
                     subset_start=0, subset_type='rand', val_batch_size=None,
-                    only_val=False, shuffle_train=True, shuffle_val=True, subset_seed=None):
+                    only_val=False, shuffle_train=True, shuffle_val=True,
+                    subset_seed=None, load_feats=None):
         '''
         Args:
             workers (int) : number of workers for data fetching (*required*).
@@ -173,7 +174,8 @@ class DataSet(object):
                                     seed=subset_seed,
                                     shuffle_train=shuffle_train,
                                     shuffle_val=shuffle_val,
-                                    custom_class_args=self.custom_class_args)
+                                    custom_class_args=self.custom_class_args,
+                                    load_feats=load_feats)
 
 class ImageNet(DataSet):
     '''

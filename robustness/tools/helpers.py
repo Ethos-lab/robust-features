@@ -101,11 +101,12 @@ class InputNormalize(ch.nn.Module):
         return x_normalized
 
 class DataPrefetcher():
-    def __init__(self, loader, stop_after=None):
+    def __init__(self, loader, stop_after=None, load_feats=False):
         self.loader = loader
         self.dataset = loader.dataset
         self.stream = ch.cuda.Stream()
         self.stop_after = stop_after
+        self.load_feats = load_feats
         self.next_input = None
         self.next_target = None
 
@@ -114,14 +115,21 @@ class DataPrefetcher():
 
     def preload(self):
         try:
-            self.next_input, self.next_target = next(self.loaditer)
+            if self.load_feats:
+                self.next_input, self.next_target, self.next_feat = next(self.loaditer)
+            else:
+                self.next_input, self.next_target = next(self.loaditer)
         except StopIteration:
             self.next_input = None
             self.next_target = None
+            if self.load_feats:
+                self.next_feat = None
             return
         with ch.cuda.stream(self.stream):
             self.next_input = self.next_input.cuda(non_blocking=True)
             self.next_target = self.next_target.cuda(non_blocking=True)
+            if self.load_feats:
+                self.next_feat = self.next_feat.cuda(non_blocking=True)
 
     def __iter__(self):
         count = 0
@@ -131,9 +139,14 @@ class DataPrefetcher():
             ch.cuda.current_stream().wait_stream(self.stream)
             input = self.next_input
             target = self.next_target
+            if self.load_feats:
+                feat = self.next_feat
             self.preload()
             count += 1
-            yield input, target
+            if self.load_feats:
+                yield input, target, feat
+            else:
+                yield input, target
             if type(self.stop_after) is int and (count > self.stop_after):
                 break
 

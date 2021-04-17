@@ -7,6 +7,7 @@ import torch as ch
 from torchvision import transforms
 
 from robustness import imagenet_models
+import robustness.data_augmentation as da
 from utils import load_checkpoint, ModelwithInputNormalization
 
 IMG_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif']
@@ -62,12 +63,6 @@ def main():
     model = ModelwithInputNormalization(model, mean, std).cuda()
     model.eval()
 
-    TRANSFORMS_IMAGENET = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-        ])
-
     class_keys = os.listdir(args.dataroot)
     pbar = tqdm.tqdm(total=len(class_keys))
     for target in class_keys:
@@ -77,18 +72,24 @@ def main():
 
         for root, _, fnames in sorted(os.walk(d)):
             for ii, fname in enumerate(sorted(fnames)):
-                pbar.set_description(f"{ii}/{len(fnames)}")
+                pbar.set_description(f"Progress: {ii}/{len(fnames)}")
                 if has_file_allowed_extension(fname, IMG_EXTENSIONS):
                     path = os.path.join(root, fname)
                     with open(path, 'rb') as f:
                         img = Image.open(f)
                         img = img.convert('RGB')
-                    img = TRANSFORMS_IMAGENET(img)
+                    img = da.TEST_TRANSFORMS_IMAGENET(img)
                     img = img.unsqueeze(0)
 
                     with ch.no_grad():
                         _, rep = model(img.cuda(), with_latent=True)
-                    ch.save(rep, f"{args.save_dir}/{path.split('/')[-1].replace('.JPEG', '.feat')}")
+
+                    save_path = os.path.join(args.save_dir, fname.split('_')[0])
+                    if not os.path.exists(save_path):
+                        os.mkdir(save_path)
+                    save_path = os.path.join(save_path, fname.replace('.JPEG', '.feat'))
+                    ch.save(rep.squeeze(0).cpu(), save_path)
+
         pbar.update(1)
     pbar.close()
 

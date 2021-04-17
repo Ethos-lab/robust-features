@@ -1,3 +1,4 @@
+import torch
 import torch.utils.data as data
 from torch.utils.data import Dataset
 from torchvision import transforms
@@ -82,7 +83,7 @@ class DatasetFolder(data.Dataset):
     """
 
     def __init__(self, root, loader, extensions, transform=None,
-                 target_transform=None, label_mapping=None):
+                 target_transform=None, label_mapping=None, load_feats=None):
         classes, class_to_idx = self._find_classes(root)
         if label_mapping is not None:
             classes, class_to_idx = label_mapping(classes, class_to_idx)
@@ -103,6 +104,8 @@ class DatasetFolder(data.Dataset):
 
         self.transform = transform
         self.target_transform = target_transform
+
+        self.load_feats = load_feats
 
     def _find_classes(self, dir):
         """
@@ -140,6 +143,11 @@ class DatasetFolder(data.Dataset):
             sample = self.transform(sample)
         if self.target_transform is not None:
             target = self.target_transform(target)
+
+        if self.load_feats:
+            feats_path = path.replace("train", f"train_feats/{self.load_feats}")
+            feat = torch.load(feats_path)
+            return sample, target, feat
 
         return sample, target
 
@@ -209,11 +217,12 @@ class ImageFolder(DatasetFolder):
         imgs (list): List of (image path, class_index) tuples
     """
     def __init__(self, root, transform=None, target_transform=None,
-                 loader=default_loader, label_mapping=None):
+                 loader=default_loader, label_mapping=None, load_feats=None):
         super(ImageFolder, self).__init__(root, loader, IMG_EXTENSIONS,
                                           transform=transform,
                                           target_transform=target_transform,
-                                          label_mapping=label_mapping)
+                                          label_mapping=label_mapping,
+                                          load_feats=load_feats)
         self.imgs = self.samples
 
 class TensorDataset(Dataset):

@@ -46,8 +46,8 @@ TRAIN_TRANSFORMS_IMAGENET = transforms.Compose([
             saturation=0.1
         ),
         transforms.ToTensor(),
-        Lighting(0.05, IMAGENET_PCA['eigval'], 
-                      IMAGENET_PCA['eigvec'])
+        Lighting(0.05, IMAGENET_PCA['eigval'],
+                       IMAGENET_PCA['eigvec'])
     ])
 """
 Standard training data augmentation for ImageNet-scale datasets: Random crop,

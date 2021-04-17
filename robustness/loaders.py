@@ -20,10 +20,10 @@ from . import imagenet_models as models
 
 
 def make_loaders(workers, batch_size, transforms, data_path, data_aug=True,
-                custom_class=None, dataset="", label_mapping=None, subset=None,
-                subset_type='rand', subset_start=0, val_batch_size=None,
-                only_val=False, shuffle_train=True, shuffle_val=True, seed=1,
-                custom_class_args=None):
+                 custom_class=None, dataset="", label_mapping=None, subset=None,
+                 subset_type='rand', subset_start=0, val_batch_size=None,
+                 only_val=False, shuffle_train=True, shuffle_val=True, seed=1,
+                 custom_class_args=None, load_feats=None):
     '''
     **INTERNAL FUNCTION**
 
@@ -35,6 +35,9 @@ def make_loaders(workers, batch_size, transforms, data_path, data_aug=True,
     >>> train_loader, val_loader = cifar_dataset.make_loaders(workers=10, batch_size=128)
     >>> # train_loader and val_loader are just PyTorch dataloaders
     '''
+    # Robust feature loading only supported for restricted imagenet
+    if dataset != 'restricted_imagenet': assert load_feats == None
+
     print(f"==> Preparing dataset {dataset}..")
     transform_train, transform_test = transforms
     if not data_aug:
@@ -54,7 +57,7 @@ def make_loaders(workers, batch_size, transforms, data_path, data_aug=True,
 
         if not only_val:
             train_set = folder.ImageFolder(root=train_path, transform=transform_train,
-                                           label_mapping=label_mapping)
+                                           label_mapping=label_mapping, load_feats=load_feats)
         test_set = folder.ImageFolder(root=test_path, transform=transform_test,
                                       label_mapping=label_mapping)
     else:
