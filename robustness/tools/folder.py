@@ -146,7 +146,9 @@ class DatasetFolder(data.Dataset):
 
         if self.load_feats:
             feats_path = path.replace("train", f"train_feats/{self.load_feats}")
+            feats_path = feats_path.replace("JPEG", "feat")
             feat = torch.load(feats_path)
+
             return sample, target, feat
 
         return sample, target
