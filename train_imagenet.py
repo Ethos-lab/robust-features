@@ -27,7 +27,7 @@ def get_args():
                         default="restricted_imagenet", help="dataset")
     parser.add_argument("--dataroot", type=str, default="/media/big_hdd/data/imagenet",
                         help="path to dataset")
-    parser.add_argument("--rob-dataroot", type=str, default="./datasets/d_robust_CIFAR",
+    parser.add_argument("--rob-dataroot", type=str, default="./datasets/d_robust",
                         help="path to robust dataset")
     parser.add_argument("--load-std-data", action="store_true",
                         help="loads D if true, else loads D_r")
@@ -205,9 +205,6 @@ def main():
     if not args.load_std_data: assert (args.l2_weight == 0.0 and args.xent_weight == 1.0),\
         "When robust dataset (D_r) is loaded, can only train with xent loss !!!"
 
-    #NOTE: Current loads features in dataloader even if not training with feature loss.
-    assert args.load_feats != None
-
     if args.save_dir == "":
         if args.l2_weight == 0:
             assert args.xent_weight == 1.0
@@ -247,22 +244,11 @@ def main():
                                                         shuffle_train=True,
                                                         shuffle_val=False,
                                                         load_feats=args.load_feats)
-    else:
-        # Load robust dataset (D_r) using arg: rob_dataroot
-        train_data = torch.cat(
-            torch.load(os.path.join(args.rob_dataroot, "RESTRICTED_IMAGENET_ims"))).cpu()
-        train_labels = torch.cat(
-            torch.load(os.path.join(args.rob_dataroot, "RESTRICTED_IMAGENET__lab"))).cpu()
-        train_set = folder.TensorDataset(train_data, train_labels,
-                                         transform=da.TRAIN_TRANSFORMS_IMAGENET)
-        train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True,
-                                  num_workers=args.num_workers, pin_memory=True)
 
-        #NOTE: Still need arg: dataroot to load val set.
-        _, val_loader = dataset.make_loaders(only_val=True,
-                                             batch_size=args.val_batch_size,
-                                             shuffle_val=False,
-                                             workers=args.num_workers)
+    else:
+        #TODO: provide separate paths to load train and val data from
+        #(modify robustness/loaders.py and robustness/datasets.py)
+        raise NotImplementedError
 
     train_loader = helpers.DataPrefetcher(train_loader, load_feats=True)
     val_loader = helpers.DataPrefetcher(val_loader)

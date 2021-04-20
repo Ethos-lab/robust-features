@@ -74,7 +74,7 @@ def main():
 
         for root, _, fnames in sorted(os.walk(d)):
             for ii, fname in enumerate(sorted(fnames)):
-                pbar.set_description(f"Progress: {ii}/{len(fnames)}")
+                pbar.set_description(f"Progress: {ii+1}/{len(fnames)}")
                 if has_file_allowed_extension(fname, IMG_EXTENSIONS):
                     path = os.path.join(root, fname)
                     with open(path, 'rb') as f:

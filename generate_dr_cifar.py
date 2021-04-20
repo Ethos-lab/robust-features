@@ -2,7 +2,6 @@ import os
 import tqdm
 import argparse
 import numpy as np
-from PIL import Image
 
 import torch as ch
 
@@ -13,7 +12,7 @@ from robustness.tools import helpers
 
 def get_args():
     parser = argparse.ArgumentParser(description="Robust data generation script.")
-    parser.add_argument("--dataset", type=str, choices=["cifar", "restricted_imagenet"],
+    parser.add_argument("--dataset", type=str, choices=["cifar"],
                         default="cifar", help="dataset")
     parser.add_argument("--dataroot", type=str, default="/media/big_hdd/data/CIFAR10",
                         help="path to dataset")
@@ -90,9 +89,7 @@ def main():
         im_n = []
         for _ in range(im.shape[0]):
             idx = int(np.random.randint(0, len(train_loader.dataset)))
-            im_n.append(
-                train_loader.dataset.transform(Image.fromarray(train_loader.dataset.data[idx]))
-            )
+            im_n.append(train_loader.dataset.__getitem__(idx)[0])
         im_n = ch.stack(im_n)
 
         # get target feature vector
