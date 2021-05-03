@@ -137,7 +137,7 @@ def train(args, s_model, t_model, trainloader, valloader, criterion, optimizer, 
         # evaluate at end of each epoch
         train_acc = 100 * correct / total
         logger.info(f"Train | "+\
-            f"loss: {loss_meter.avg:.4f} ({xent_meter.avg:.4f}, {fl_meter.avg:.4f})" +\
+            f"loss: {loss_meter.avg:.4f} ({xent_meter.avg:.4f}, {fl_meter.avg:.4f}) " +\
             f"accuracy: {train_acc:.4f}%")
 
         val_nat_acc, val_adv_acc = test(s_model, valloader, attack)
@@ -213,7 +213,7 @@ def main():
             args.save_dir = f"./checkpoints/{args.dataset}_{args.student_arch}"
         else:
             #NOTE: Infers teacher_arch from arg: teacher_load_path.
-            args.teacher_arch = args.teacher_load_path.split("_")[1]
+            args.teacher_arch = args.teacher_load_path.split("/")[-2].split("_")[1]
             args.save_dir = f"./checkpoints/{args.dataset}-feat_loss=l2-teacher={args.teacher_arch}-student={args.student_arch}-xent_weight={args.xent_weight}-l2_weight={args.l2_weight}"
 
         if args.exp_name != "":
@@ -223,7 +223,7 @@ def main():
             assert args.xent_weight == 1.0
         else:
            #NOTE: Infers teacher_arch from arg: teacher_load_path.
-           args.teacher_arch = args.teacher_load_path.split("_")[1]
+            args.teacher_arch = args.teacher_load_path.split("/")[-2].split("_")[1]
 
     if not os.path.exists(args.save_dir):
         os.mkdir(args.save_dir)

@@ -40,16 +40,20 @@ def main(args, store=None):
     dataset = DATASETS[args.dataset](data_path)
 
     train_loader, val_loader = dataset.make_loaders(args.workers,
-                    args.batch_size, data_aug=bool(args.data_aug))
+                    args.batch_size, data_aug=bool(args.data_aug), val_batch_size=32) #NOTE: hardcoded value
 
-    train_loader = helpers.DataPrefetcher(train_loader)
-    val_loader = helpers.DataPrefetcher(val_loader)
+#    train_loader = helpers.DataPrefetcher(train_loader)
+#    val_loader = helpers.DataPrefetcher(val_loader)
     loaders = (train_loader, val_loader)
 
     print(args)
+    parallel = False
+    # Run on multiple GPUs
+    if ch.cuda.device_count() > 1:
+        parallel = True 
     # MAKE MODEL
     model, checkpoint = make_and_restore_model(arch=args.arch,
-            dataset=dataset, resume_path=args.resume)
+            dataset=dataset, resume_path=args.resume, parallel=parallel)
     if 'module' in dir(model): model = model.module
 
     if args.eval_only:

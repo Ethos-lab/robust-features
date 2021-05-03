@@ -1,4 +1,3 @@
-import dill
 import tqdm
 import argparse
 import numpy as np
@@ -6,8 +5,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from robustness import model_utils, datasets, cifar_models
+from robustness import cifar_models, imagenet_models
+from robustness.attacker import AttackerModel
+from robustness.datasets import DATASETS
 from robustness.tools import helpers
+from utils import load_checkpoint, ModelwithInputNormalization
 
 from art.attacks.evasion import ProjectedGradientDescentPyTorch
 from art.estimators.classification import PyTorchClassifier
@@ -15,12 +17,19 @@ from art.estimators.classification import PyTorchClassifier
 
 def get_args():
     parser = argparse.ArgumentParser(description="Testing script.")
-    parser.add_argument("--dataset", type=str, choices=["CIFAR"], default="CIFAR", help="dataset")
+    parser.add_argument("--dataset", type=str, choices=["cifar", "restricted_imagenet"],
+                        default="cifar", help="dataset")
     parser.add_argument("--dataroot", type=str, default="/media/big_hdd/data/CIFAR10", help="path to dataset if you need diff from default")
     parser.add_argument("--model", type=str, default="resnet50")
     parser.add_argument("--load-path", type=str, default="")
     parser.add_argument("--batch-size", type=int, default=50, help="initial batch size")
     parser.add_argument("--num-workers", type=int, default=4, help="for dataloader")
+    # attack hyperparams (no default values, pass every time)
+    parser.add_argument("--eps", type=float, required=True, help="perturbation budget")
+    parser.add_argument("--pgd-iters", type=int, required=True, help="perturb number of steps")
+    parser.add_argument("--step-size", type=float, required=True, help="perturb step size")
+    parser.add_argument("--constraint", type=str, choices=["2", "inf"], required=True, help="PGD attack constraint metric")
+    parser.add_argument("--no_rand_init", action="store_true", help="random initialization for PGD")
 
     args = parser.parse_args()
 
@@ -47,26 +56,6 @@ def test(model, test_loader, attack=None):
     return 100*correct/total
 
 
-class ModelwithInputNormalization(nn.Module):
-    def __init__(self, model, mean, std):
-        super(ModelwithInputNormalization, self).__init__()
-        self.normalizer = helpers.InputNormalize(mean, std)
-        self.model = model
-
-    def forward(self,  inp, with_latent=False, fake_relu=False, no_relu=False):
-        normalized_inp = self.normalizer(inp)
-
-        if no_relu and (not with_latent):
-            print("WARNING: 'no_relu' has no visible effect if 'with_latent is False.")
-        if no_relu and fake_relu:
-            raise ValueError("Options 'no_relu' and 'fake_relu' are exclusive")
-
-        output = self.model(normalized_inp, with_latent=with_latent,
-                            fake_relu=fake_relu, no_relu=no_relu)
-
-        return output
-
-
 def main():
     # Get arguments
     args = get_args()
@@ -75,31 +64,40 @@ def main():
         print(f"Argument {arg}: {value}")
 
     # Load dataset
-    dataset_function = getattr(datasets, args.dataset)
+    dataset_function = DATASETS[args.dataset]
     dataset = dataset_function(args.dataroot)
-    _, test_loader = dataset.make_loaders(workers=args.num_workers, 
-                                          batch_size=args.batch_size, 
-                                          data_aug=False,
-                                          only_val=True,
-                                          shuffle_val=False)
+    _, test_loader = dataset.make_loaders(only_val=True,
+                                          batch_size=args.batch_size,
+                                          shuffle_val=False,
+                                          workers=args.num_workers)
+    #test_loader = helpers.DataPrefetcher(test_loader)
 
-    model = cifar_models.__dict__[args.model](num_classes=10).cuda()
+    if args.dataset == "cifar":
+        nb_classes = 10
+        input_shape = (3,32,32)
+        model = cifar_models.__dict__[args.model](num_classes=nb_classes)
+    else:
+        nb_classes = 9
+        input_shape = (3,224,224)
+        model = imagenet_models.__dict__[args.model](num_classes=nb_classes)
 
-    checkpoint = torch.load(args.load_path, pickle_module=dill)
-    state_dict_path = "model"
-    if not ("model" in checkpoint):
-        state_dict_path = "state_dict"
+    # Loading model checkpoint
+    ckpt = load_checkpoint(args.load_path)
+    model.load_state_dict(ckpt['model_sd'])
+    print(f"Successfully loaded checkpoint from epoch: {ckpt['load_epoch']} !!!")
+    del ckpt
 
-    sd = checkpoint[state_dict_path]
-    sd = {k.replace("module.model.", ""):v for k,v in sd.items() if ("attacker" not in k) and ("normalizer" not in k)}
-    model.load_state_dict(sd)
-    print(f"Successfully loaded checkpoint from epoch: {checkpoint['epoch']}")
+    if torch.cuda.device_count() > 1:
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+        model = nn.DataParallel(model)
 
     model = ModelwithInputNormalization(model, dataset.mean, dataset.std)
     model.eval()
 
     criterion = nn.CrossEntropyLoss(reduction="sum")
-    art_model = PyTorchClassifier(model=model, loss=criterion, input_shape=(3,32,32), nb_classes=10, clip_values=(0,1))
+    art_model = PyTorchClassifier(model=model, loss=criterion, input_shape=input_shape,
+                                  nb_classes=nb_classes, clip_values=(0,1))
 
 
     # Testing begins
@@ -108,50 +106,20 @@ def main():
     acc = test(art_model, test_loader)
     print(f"Natural accuracy: {acc:.4f}%")
 
-    # PGD (eps = 0.25)
-    attack_kwargs = {
-        "norm":2, # use L2-PGD
-        "eps": 0.25,
-        "eps_step": 0.03125,  #0.25: 0.03125, 0.5: 0.0625, 1: 0.125
-        "max_iter": 20,
-        "targeted": False,
-        "num_random_init": 1,
-        "batch_size": args.batch_size,
-        "verbose": False
-    }
-    adversary = ProjectedGradientDescentPyTorch(art_model, **attack_kwargs)
-    acc = test(art_model, test_loader, adversary)
-    print(f"Adversarial accuracy (0.25): {acc:.4f}%")
-
-    # PGD (eps = 0.5)
-    attack_kwargs = {
-        "norm":2, # use L2-PGD
-        "eps": 0.5,
-        "eps_step": 0.0625,
-        "max_iter": 20,
-        "targeted": False,
-        "num_random_init": 1,
-        "batch_size": args.batch_size,
-        "verbose": False
-    }
-    adversary = ProjectedGradientDescentPyTorch(art_model, **attack_kwargs)
-    acc = test(art_model, test_loader, adversary)
-    print(f"Adversarial accuracy (0.5): {acc:.4f}%")
-
     # PGD (eps = 1.0)
     attack_kwargs = {
-        "norm":2, # use L2-PGD
-        "eps": 1.0,
-        "eps_step": 0.125,
-        "max_iter": 20,
+        "norm":int(args.constraint), # use L2-PGD
+        "eps": args.eps,
+        "eps_step": args.step_size,
+        "max_iter": args.pgd_iters,
         "targeted": False,
-        "num_random_init": 1,
+        "num_random_init": 1 if not args.no_rand_init else 0,
         "batch_size": args.batch_size,
         "verbose": False
     }
     adversary = ProjectedGradientDescentPyTorch(art_model, **attack_kwargs)
     acc = test(art_model, test_loader, adversary)
-    print(f"Adversarial accuracy (1.0): {acc:.4f}%")
+    print(f"Adversarial accuracy ({args.eps}): {acc:.4f}%")
 
 
 if __name__ == "__main__":

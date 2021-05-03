@@ -335,7 +335,7 @@ def train_model(args, model, loaders, *, checkpoint=None, dp_device_ids=None,
 
 
         def save_checkpoint(filename):
-            ckpt_save_path = os.path.join(args.out_dir if not store else \
+            ckpt_save_path = os.path.join(f'{args.out_dir}/{args.exp_name}' if not store else \
                                           store.path, filename)
             sd_info['time_per_epoch'] = running_time_avg
             ch.save(sd_info, ckpt_save_path, pickle_module=dill)
@@ -385,7 +385,9 @@ def train_model(args, model, loaders, *, checkpoint=None, dp_device_ids=None,
 
             # Update the latest and best checkpoints (overrides old one)
             save_checkpoint(consts.CKPT_NAME_LATEST)
-            if is_best: save_checkpoint(consts.CKPT_NAME_BEST)
+            if is_best:
+                print('Best checkpoint updated !!!')
+                save_checkpoint(consts.CKPT_NAME_BEST)
 
         if schedule: schedule.step()
         if has_attr(args, 'epoch_hook'): args.epoch_hook(model, log_info)
@@ -458,7 +460,7 @@ def _model_loop(args, loop_type, loader, model, opt, epoch, adv, writer):
 
     iterator = tqdm(enumerate(loader), total=len(loader))
     for i, (inp, target) in iterator:
-       # measure data loading time
+        # measure data loading time
         target = target.cuda(non_blocking=True)
         output, final_inp = model(inp, target=target, make_adv=adv,
                                   **attack_kwargs)
@@ -521,6 +523,13 @@ def _model_loop(args, loop_type, loader, model, opt, epoch, adv, writer):
 
         iterator.set_description(desc)
         iterator.refresh()
+
+        # clear up memory
+        del output
+        del final_inp
+        del loss
+        del reg_term
+        del model_logits
 
     if writer is not None:
         prec_type = 'adv' if adv else 'nat'

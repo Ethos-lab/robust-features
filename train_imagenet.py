@@ -135,7 +135,7 @@ def train(args, s_model, trainloader, valloader, criterion, optimizer, scheduler
         # evaluate at end of each epoch
         train_acc = 100 * correct / total
         logger.info(f"Train | "+\
-            f"loss: {loss_meter.avg:.4f} ({xent_meter.avg:.4f}, {fl_meter.avg:.4f})" +\
+            f"loss: {loss_meter.avg:.4f} ({xent_meter.avg:.4f}, {fl_meter.avg:.4f}) " +\
             f"accuracy: {train_acc:.4f}%")
 
         val_nat_acc, val_adv_acc = test(s_model, valloader, attack)

@@ -1,6 +1,8 @@
 import tqdm
 import argparse
+
 import torch as ch
+import torch.nn as nn
 
 from robustness import cifar_models, imagenet_models
 from robustness.attacker import AttackerModel
@@ -135,6 +137,11 @@ def main():
     print(f"Successfully loaded checkpoint from epoch: {ckpt['load_epoch']} !!!")
     del ckpt
 
+    if ch.cuda.device_count() > 1:
+        print("Let's use", ch.cuda.device_count(), "GPUs!")
+        # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+        model = nn.DataParallel(model)
+ 
     # wrap nn.module object into AttackerModel to make it compatible with robustness toolbox
     amodel = AttackerModel(model, dataset).cuda()
     amodel.eval()
